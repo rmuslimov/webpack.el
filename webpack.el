@@ -29,34 +29,47 @@
 (require 'f)
 (require 's)
 
+;; (defconst webpack-PROJECT_PATH nil)
+(defcustom webpack-PROJECT_PATH
+  "~/projects/airborne"
+  "User facing PROJECT_PATH variable.")
+
+(defvar webpack-project-path nil "Internal parsed value.")
+
 (defvar webpack-config-filename
   "webpack.config.js")
 
-(defvar webpack--extract-cli-function
-  "var wb=require('./%s'); console.log(JSON.stringify(wb.resolve));")
-
-(defvar webpack--containing-path
-  nil "Webpack config file containing path.")
+(defun webpack--extract-cli-function (CONFIG_NAME)
+  (format
+   "var wb=require('%s/%s'); console.log(JSON.stringify(wb.resolve));" webpack-project-path CONFIG_NAME))
 
 (defvar webpack--resolve-config
-  nil "Webpack config that we use lives here.")
+  nil "Webpack extracted config that we use lives here.")
 
-(defun webpack--get-config (PATH)
-  "Find webpack configureation in PATH"
-  (let ((default-directory PATH)
-        (webpack-js-cmd (format webpack--extract-cli-function webpack-config-filename)))
+(defun webpack--get-config ()
+  "Find webpack configuration."
+  (let ((default-directory webpack-PROJECT_PATH)
+        (process-environment
+         (cons (format "NODE_PATH=%s" (f-join webpack-PROJECT_PATH "node_modules"))
+               process-environment))
+        (webpack-js-cmd (format (webpack--extract-cli-function webpack-config-filename))))
     (with-temp-buffer
       (call-process "node" nil t nil "-e" webpack-js-cmd)
       (json-read-from-string (buffer-string)))))
 
 (defun webpack-setup-config ()
   "Setup config defvar before doing job."
-  (interactive)
-  (setq webpack--containing-path (vc-git-root (buffer-file-name)))
-  (setq webpack--resolve-config
-        (webpack--get-config webpack--containing-path))
-  (format "Webpack config found at: %s."
-          (f-join webpack--containing-path webpack-config-filename)))
+  (when (s-blank? webpack-project-path)
+    (setq webpack-project-path (or webpack-PROJECT_PATH (vc-git-root (buffer-file-name)))))
+  (when (s-starts-with? "~" webpack-project-path)
+    (setq webpack-project-path (expand-file-name webpack-project-path)))
+
+  (setq webpack--resolve-config (webpack--get-config))
+  (message
+   (format "Webpack config found at: %s."
+           (f-join webpack-project-path webpack-config-filename))))
+
+(webpack-setup-config)
 
 (defun webpack--get-user-request ()
   "Understand what user wants, returns plist with info. "
@@ -92,15 +105,39 @@
           ))
       ;; or in root path otherwise
       "TODO: searching in root"
-
       ))
   )
+
+(defun webpack--find-declaration (WORD FILENAME)
+  "Find declaration of WORD in FILENAME."
+  (when (eq webpack--resolve-config nil)
+    (webpack-setup-config))
+
+  (let* ((default-directory "~/projects/webpack.el/")
+         (process-environment
+          (cons (format "NODE_PATH=%s" (f-join webpack-project-path "node_modules"))
+                process-environment))
+         (absfilepath (f-join webpack-project-path FILENAME))
+         (extracted-ast-info
+          (with-temp-buffer
+            (call-process "node" nil t nil "extract.js" absfilepath  WORD)
+            (buffer-string)))
+    (astinfo (json-read-from-string extracted-ast-info)))
+    astinfo)
+  )
+
+(setq --testval
+      (webpack--find-declaration
+       "SpecialRatesSection" "static/midoffice/js/companies/sections/SpecialRates.js"))
+
+(cdr (assoc 'status --testval))
+
 
 (defun webpack-goto-definition ()
   "Main ninja method."
   (interactive)
   (when (eq webpack--resolve-config nil)
-    (webpack--setup-config))
+    (webpack-setup-config))
 
   (let* ((request (webpack--get-user-request))
          (requested-path (plist-get request :requested-path))
