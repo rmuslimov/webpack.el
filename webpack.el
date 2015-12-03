@@ -172,35 +172,35 @@
 	  (kind . "named"))))
   )
 
-(setq testv (webpack--import-by-specifiers))
-(cdr (assoc 'name (cdr (assoc "SpecialRatesSection" testv))))
+;; (setq testv (webpack--import-by-specifiers))
+;; (cdr (assoc 'name (cdr (assoc "SpecialRatesSection" testv))))
 
-(webpack--find-declaration
- "SpecialRatesSection"
- (expand-file-name
-  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+;; (webpack--find-declaration
+;;  "SpecialRatesSection"
+;;  (expand-file-name
+;;   "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
 
-(webpack--find-declaration
- "SpecialRates"
- (expand-file-name
-  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+;; (webpack--find-declaration
+;;  "SpecialRates"
+;;  (expand-file-name
+;;   "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
 
-(webpack--find-declaration
- "React"
- (expand-file-name
-  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+;; (webpack--find-declaration
+;;  "React"
+;;  (expand-file-name
+;;   "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
 
-(webpack--find-declaration
- "SpecialRatesSection"
- (expand-file-name
-  "~/projects/airborne/static/midoffice/js/components/special-rates/SpecialRatesSection.js"))
+;; (webpack--find-declaration
+;;  "SpecialRatesSection"
+;;  (expand-file-name
+;;   "~/projects/airborne/static/midoffice/js/components/special-rates/SpecialRatesSection.js"))
 
-(cdr
- (assoc
-  'local
-  (aref
-   (cdr
-	(assoc 'specifiers
-		   (aref (cdr (assoc 'imported response)) 1))) 0)))
+;; (cdr
+;;  (assoc
+;;   'local
+;;   (aref
+;;    (cdr
+;; 	(assoc 'specifiers
+;; 		   (aref (cdr (assoc 'imported response)) 1))) 0)))
 
-(provide 'webpack)
+(provide 'webpack)  ;;; webpack.el ends here

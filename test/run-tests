@@ -1,0 +1,6 @@
+(let ((current-directory (file-name-directory load-file-name)))
+  (setq webpack-test-path (expand-file-name "." current-directory))
+  (setq webpack-root-path (expand-file-name ".." current-directory)))
+
+(add-to-list 'load-path webpack-root-path)
+(add-to-list 'load-path webpack-test-path)
