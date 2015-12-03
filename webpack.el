@@ -30,28 +30,30 @@
 (require 's)
 
 ;; (defconst webpack-PROJECT_PATH nil)
-(defcustom webpack-PROJECT_PATH
+(defconst webpack-PROJECT_PATH
   "~/projects/airborne"
   "User facing PROJECT_PATH variable.")
 
 (defvar webpack-project-path nil "Internal parsed value.")
 
-(defvar webpack-config-filename
+(defconst webpack-config-filename
   "webpack.config.js")
 
 (defun webpack--extract-cli-function (CONFIG_NAME)
   (format
-   "var wb=require('%s/%s'); console.log(JSON.stringify(wb.resolve));" webpack-project-path CONFIG_NAME))
+   "var wb=require('%s/%s'); console.log(JSON.stringify(wb.resolve));"
+   webpack-project-path CONFIG_NAME))
 
 (defvar webpack--resolve-config
   nil "Webpack extracted config that we use lives here.")
 
 (defun webpack--get-config ()
   "Find webpack configuration."
-  (let ((default-directory webpack-PROJECT_PATH)
+  (let ((default-directory webpack-project-path)
         (process-environment
-         (cons (format "NODE_PATH=%s" (f-join webpack-PROJECT_PATH "node_modules"))
-               process-environment))
+          (cons (format "NODE_PATH=%s" (f-join webpack-project-path "node_modules"))
+                process-environment)
+         )
         (webpack-js-cmd (format (webpack--extract-cli-function webpack-config-filename))))
     (with-temp-buffer
       (call-process "node" nil t nil "-e" webpack-js-cmd)
@@ -68,19 +70,6 @@
   (message
    (format "Webpack config found at: %s."
            (f-join webpack-project-path webpack-config-filename))))
-
-(webpack-setup-config)
-
-(defun webpack--get-user-request ()
-  "Understand what user wants, returns plist with info. "
-  (let ((requested-path
-         (save-excursion
-           (line-beginning-position)
-           (search-forward "'")
-           (setq beg (point))
-           (search-forward "'")
-           (buffer-substring-no-properties beg (- (point) 1)))))
-    (list :requested-path requested-path :requested-word (current-word))))
 
 (defun webpack--find-existing-path (requested-path)
   "Iter over existing pathes and check if REQUESTED-PATH exists."
@@ -105,8 +94,7 @@
           ))
       ;; or in root path otherwise
       "TODO: searching in root"
-      ))
-  )
+      )))
 
 (defun webpack--find-declaration (WORD FILENAME)
   "Find declaration of WORD in FILENAME."
@@ -122,16 +110,40 @@
           (with-temp-buffer
             (call-process "node" nil t nil "extract.js" absfilepath  WORD)
             (buffer-string)))
-    (astinfo (json-read-from-string extracted-ast-info)))
-    astinfo)
-  )
+         (astinfo (json-read-from-string extracted-ast-info)))
 
-(setq --testval
-      (webpack--find-declaration
-       "SpecialRatesSection" "static/midoffice/js/companies/sections/SpecialRates.js"))
+	(progn
+	  ;; do search if possible
+	  (when (equal (cdr (assoc 'status astinfo)) "success")
+		(let* ((ast-declaredType (cdr (assoc 'declaredType astinfo)))
+			   (ast-identifier (cdr (assoc 'identifier astinfo)))
+			   (ast-identifier-name (cdr (assoc 'name ast-identifier))))
+		  (cond
+		   ;; import statement
+		   ((equal ast-declaredType "ImportDefaultSpecifier")
+			(let* ((imports (webpack--imports-by-specifiers))
+				   (details (cdr (assoc ast-identifier-name imports))))
+			  (webpack--find-declaration
+			   (cdr (assoc 'imported details))
+			   (webpack--find-existing-path (cdr (assoc 'source details)))
+			   )))
+		   ;; internal statement
+		   ((equal ast-declaredType "ClassDeclaration")
+			(let* ((location (cdr (assoc 'loc ast-identifier)))
+				   (column (cdr (assoc 'column (cdr (assoc 'start location)))))
+				   (line (cdr (assoc 'line (cdr (assoc 'start location))))))
+			  (progn
+				(find-file FILENAME)
+				(goto-line line)
+				(move-to-column column))
+			  ))
+		   ;; unknown
+		   astinfo)
+		  )))
+	))
 
-(cdr (assoc 'status --testval))
-
+(defun webpack--current-word ()
+  (s-replace-all '(("<" . "") (">" . "")) (current-word)))
 
 (defun webpack-goto-definition ()
   "Main ninja method."
@@ -144,9 +156,51 @@
          (requested-word (plist-get request :requested-word))
          (found-file (webpack--find-existing-path requested-path)))
 
-    (find-file found-file)
-    (if (and (s-starts-with? "{" requested-word) (s-ends-with? "{" requested-word))
-        (search-forward (format "class %s extends" requested-word))
-      (search-forward "export default"))))
+    (princ
+     (webpack--find-declaration (webpack--current-word) (buffer-file-name)))
+    ;; (find-file found-file)
+    ;; (if (and (s-starts-with? "{" requested-word) (s-ends-with? "{" requested-word))
+    ;;     (search-forward (format "class %s extends" requested-word))
+    ;;   (search-forward "export default")))
+	))
+
+(defun webpack--imports-by-specifiers ()
+  "Get information about imports, and create alist with them"
+  '(("SpecialRatesSection" .
+	 ((source . "midoffice/components/special-rates/SpecialRatesSection")
+	  (imported . "SpecialRatesSection")
+	  (kind . "named"))))
+  )
+
+(setq testv (webpack--import-by-specifiers))
+(cdr (assoc 'name (cdr (assoc "SpecialRatesSection" testv))))
+
+(webpack--find-declaration
+ "SpecialRatesSection"
+ (expand-file-name
+  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+
+(webpack--find-declaration
+ "SpecialRates"
+ (expand-file-name
+  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+
+(webpack--find-declaration
+ "React"
+ (expand-file-name
+  "~/projects/airborne/static/midoffice/js/companies/sections/SpecialRates.js"))
+
+(webpack--find-declaration
+ "SpecialRatesSection"
+ (expand-file-name
+  "~/projects/airborne/static/midoffice/js/components/special-rates/SpecialRatesSection.js"))
+
+(cdr
+ (assoc
+  'local
+  (aref
+   (cdr
+	(assoc 'specifiers
+		   (aref (cdr (assoc 'imported response)) 1))) 0)))
 
 (provide 'webpack)
